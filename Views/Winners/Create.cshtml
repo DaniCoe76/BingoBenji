@@ -1,0 +1,74 @@
+﻿@model BingoBenji.ViewModels.WinnerCreateVm
+@{
+    ViewData["Title"] = "Registrar ganador";
+}
+
+<div class="glass p-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h3 class="mb-0">Registrar ganador 🏆</h3>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" asp-controller="Home" asp-action="Index">← Tablas</a>
+            <a class="btn btn-outline-info" asp-action="Index">Ver listado</a>
+        </div>
+    </div>
+
+    <hr class="border-white border-opacity-10" />
+
+    <form method="post" class="row g-3" onsubmit="showLoader()">
+        @Html.AntiForgeryToken()
+
+        <div class="col-md-3">
+            <label class="form-label text-white-50">Código generación (10)</label>
+            <input class="form-control" asp-for="GenerationCode" maxlength="10" />
+            <div class="text-danger">@Html.ValidationMessageFor(m => m.GenerationCode)</div>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label text-white-50">Tabla #</label>
+            <input class="form-control" asp-for="SheetNumber" type="number" min="1" max="1000" />
+            <div class="text-danger">@Html.ValidationMessageFor(m => m.SheetNumber)</div>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label text-white-50">Victoria</label>
+            <select class="form-select" asp-for="VictoryType">
+                <option value="Full">Tabla llena</option>
+                <option value="Corners">Esquinas</option>
+                <option value="Line">Línea</option>
+            </select>
+            <div class="text-danger">@Html.ValidationMessageFor(m => m.VictoryType)</div>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label text-white-50">Teléfono</label>
+            <input class="form-control" asp-for="Phone" />
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label text-white-50">Nombre jugador</label>
+            <input class="form-control" asp-for="PlayerName" />
+            <div class="text-danger">@Html.ValidationMessageFor(m => m.PlayerName)</div>
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label text-white-50">Banco</label>
+            <input class="form-control" asp-for="BankName" />
+            <div class="text-danger">@Html.ValidationMessageFor(m => m.BankName)</div>
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label text-white-50">Cuenta bancaria</label>
+            <input class="form-control" asp-for="BankAccountNumber" />
+            <div class="text-danger">@Html.ValidationMessageFor(m => m.BankAccountNumber)</div>
+        </div>
+
+        <div class="col-12">
+            <label class="form-label text-white-50">Notas (opcional)</label>
+            <input class="form-control" asp-for="Notes" />
+        </div>
+
+        <div class="col-12">
+            <button class="btn btn-warning btn-lg btn-glow"><span>Guardar ganador</span></button>
+        </div>
+    </form>
+</div>

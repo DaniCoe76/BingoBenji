@@ -1,0 +1,133 @@
+﻿@model BingoBenji.ViewModels.HomeVm
+@{
+    ViewData["Title"] = "Tablas";
+}
+
+<div class="glass p-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+            <h2 class="mb-1">Tablas BingoBenji 🧩</h2>
+            <div class="text-white-50">
+                Genera 1000 tablas (cada una: 1 PDF con 4 juegos) • Marca de agua desde <code>wwwroot/images/watermark.jpg</code>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <form method="post" asp-action="Generate1000" onsubmit="showLoader()">
+                @Html.AntiForgeryToken()
+                <button class="btn btn-warning btn-glow">
+                    <span>⚙️ Generar 1000</span>
+                </button>
+            </form>
+
+            <form method="post" asp-action="Regenerate" onsubmit="return confirm('Esto reinicia TODO y crea una generación nueva. ¿Continuar?') && (showLoader(), true);">
+                @Html.AntiForgeryToken()
+                <button class="btn btn-outline-danger">
+                    🔁 Regenerar tablas
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <hr class="border-white border-opacity-10" />
+
+    @if (Model.ActiveGeneration == null)
+    {
+        <div class="alert alert-info glass">
+            No hay generación activa todavía. Pulsa <b>Generar 1000</b>.
+        </div>
+    }
+    else
+    {
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="glass p-3">
+                    <div class="text-white-50 small">Generación activa</div>
+                    <div class="fs-4 fw-bold">@Model.ActiveGeneration.GenerationCode</div>
+                    <div class="text-white-50 small">Creada: @Model.ActiveGeneration.CreatedAt.ToString("yyyy-MM-dd HH:mm")</div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="glass p-3 h-100">
+                    <div class="row g-2">
+                        <div class="col-sm-4">
+                            <div class="text-white-50 small">Total</div>
+                            <div class="fs-4 fw-bold">@Model.TotalSheets</div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-white-50 small">Stock (sin comprar)</div>
+                            <div class="fs-4 fw-bold text-warning">@Model.StockUnassigned</div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-white-50 small">Compradas</div>
+                            <div class="fs-4 fw-bold text-success">@Model.SoldCount</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="border-white border-opacity-10" />
+
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="glass p-3">
+                    <h5 class="mb-2">🧪 Previsualizar tablas (sin comprar)</h5>
+
+                    <div class="text-white-50 small mb-2">
+                        El sistema selecciona aleatoriamente solo del stock disponible. Si no te gustan, vuelve a previsualizar.
+                    </div>
+
+                    <div class="d-flex gap-2 flex-wrap align-items-end">
+                        <div>
+                            <label class="form-label text-white-50">Cantidad</label>
+                            <input id="qty" class="form-control" type="number" min="1" max="50" value="1" />
+                        </div>
+                        <button class="btn btn-outline-info" onclick="goPreview()">
+                            🎲 Buscar aleatorias
+                        </button>
+                    </div>
+
+                    <div class="text-white-50 small mt-2">
+                        Nota: la compra se hace en la pantalla de preview.
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="glass p-3">
+                    <h5 class="mb-2">🔎 Buscar PDF por Generación + #Tabla</h5>
+
+                    <form method="get" asp-action="Pdf" class="row g-2" onsubmit="showLoader()">
+                        <div class="col-md-6">
+                            <label class="form-label text-white-50">Código (10)</label>
+                            <input class="form-control" name="generationCode" value="@Model.ActiveGeneration.GenerationCode" maxlength="10" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-white-50">Tabla #</label>
+                            <input class="form-control" name="sheetNumber" type="number" min="1" max="1000" placeholder="56" />
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button class="btn btn-success w-100">PDF</button>
+                        </div>
+                    </form>
+
+                    <div class="text-white-50 small mt-2">
+                        Sirve para reimprimir tablas compradas o revisar cualquier tabla del inventario.
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        function goPreview() {
+            const q = parseInt(document.getElementById('qty').value || '1', 10);
+            const safe = Math.max(1, Math.min(50, q));
+            window.location.href = `/Home/Preview?quantity=${safe}`;
+        }
+    </script>
+}

@@ -1,0 +1,164 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - BingoBenji</title>
+
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+    <style>
+        body {
+            background: radial-gradient(1200px 600px at 10% 0%, rgba(255,215,0,.18), transparent 60%),
+                        radial-gradient(1200px 600px at 90% 10%, rgba(0,200,255,.12), transparent 55%),
+                        #0b1020;
+            color: #e9eefc;
+        }
+        .glass {
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 18px;
+            box-shadow: 0 18px 45px rgba(0,0,0,.35);
+        }
+        .brand {
+            letter-spacing: .6px;
+        }
+        .btn-glow {
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-glow:before {
+            content:"";
+            position:absolute;
+            inset:-120%;
+            background: conic-gradient(from 90deg, transparent, rgba(255,255,255,.25), transparent);
+            animation: spin 2.8s linear infinite;
+        }
+        .btn-glow > span { position: relative; z-index: 2; }
+        @@keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+
+        .toast-wrap {
+            position: fixed;
+            right: 18px;
+            top: 18px;
+            z-index: 9999;
+            width: min(360px, 90vw);
+        }
+
+        .loader-overlay{
+            display:none;
+            position:fixed;
+            inset:0;
+            background:rgba(0,0,0,.55);
+            z-index: 9998;
+            align-items:center;
+            justify-content:center;
+        }
+        .loader-card{
+            padding:18px 20px;
+            border-radius:18px;
+            background: rgba(255,255,255,.08);
+            border: 1px solid rgba(255,255,255,.12);
+            text-align:center;
+            width: min(420px, 92vw);
+        }
+        .spinner-border{ width: 2.4rem; height: 2.4rem; }
+    </style>
+</head>
+<body>
+    <div class="loader-overlay" id="loaderOverlay">
+        <div class="loader-card">
+            <div class="spinner-border text-warning" role="status"></div>
+            <div class="mt-3 fw-semibold">Procesando…</div>
+            <div class="text-white-50 small">Generando magia de papel 🧾✨</div>
+        </div>
+    </div>
+
+    <div class="toast-wrap">
+        @if (TempData["Success"] != null)
+        {
+            <div class="alert alert-success glass">
+                <b>✅</b> @TempData["Success"]
+            </div>
+        }
+        @if (TempData["Error"] != null)
+        {
+            <div class="alert alert-danger glass">
+                <b>⛔</b> @TempData["Error"]
+            </div>
+        }
+        @if (TempData["Info"] != null)
+        {
+            <div class="alert alert-info glass">
+                <b>ℹ️</b> @TempData["Info"]
+            </div>
+        }
+    </div>
+
+    <header class="py-3">
+        <div class="container">
+            <nav class="navbar navbar-expand-lg glass px-3">
+                <a class="navbar-brand text-white fw-bold brand" asp-controller="Home" asp-action="Index">
+                    🎯 BingoBenji
+                </a>
+                <button class="navbar-toggler bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="navMain">
+                    <ul class="navbar-nav ms-auto gap-2">
+                        <li class="nav-item">
+                            <a class="nav-link text-white-50" asp-controller="Home" asp-action="Index">Tablas</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white-50" asp-controller="Winners" asp-action="Index">Ganadores</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white-50" asp-controller="Winners" asp-action="Create">Registrar</a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container pb-5">
+        @RenderBody()
+    </main>
+
+    <footer class="py-4">
+        <div class="container text-center text-white-50 small">
+            BingoBenji • Local • @DateTime.Now.Year
+        </div>
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        function showLoader() {
+            document.getElementById('loaderOverlay').style.display = 'flex';
+        }
+        function hideLoader() {
+            document.getElementById('loaderOverlay').style.display = 'none';
+        }
+
+        // Auto-ocultar alerts
+        setTimeout(() => {
+            document.querySelectorAll('.toast-wrap .alert').forEach(a => {
+                a.style.transition = 'opacity .4s ease';
+                a.style.opacity = '0';
+                setTimeout(() => a.remove(), 450);
+            });
+        }, 3500);
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

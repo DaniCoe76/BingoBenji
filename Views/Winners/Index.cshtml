@@ -1,0 +1,98 @@
+﻿@model BingoBenji.ViewModels.WinnersListVm
+@{
+    ViewData["Title"] = "Ganadores";
+}
+
+<div class="glass p-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h3 class="mb-0">Ganadores 📜</h3>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" asp-controller="Home" asp-action="Index">← Tablas</a>
+            <a class="btn btn-outline-warning" asp-action="Create">+ Registrar</a>
+        </div>
+    </div>
+
+    <hr class="border-white border-opacity-10" />
+
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label text-white-50">Generación</label>
+            <input class="form-control" name="gen" value="@Model.FilterGenerationCode" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label text-white-50">Nombre</label>
+            <input class="form-control" name="name" value="@Model.FilterName" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label text-white-50">Tabla #</label>
+            <input class="form-control" name="sheet" type="number" value="@(Model.FilterSheetNumber?.ToString() ?? "")" />
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-outline-info w-100">Filtrar</button>
+        </div>
+        <div class="col-md-2">
+            <a class="btn btn-outline-secondary w-100" asp-action="Index">Limpiar</a>
+        </div>
+    </form>
+
+    <div class="text-white-50 small mt-3">
+        Total: <b>@Model.Total</b> • Página <b>@Model.Page</b> de <b>@Model.TotalPages</b>
+    </div>
+
+    <div class="table-responsive mt-2">
+        <table class="table table-dark table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Gen</th>
+                    <th>Tabla</th>
+                    <th>Jugador</th>
+                    <th>Victoria</th>
+                    <th>Banco</th>
+                    <th>Cuenta</th>
+                    <th>Tel</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var w in Model.Items)
+                {
+                    <tr>
+                        <td>@w.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@w.GenerationCode</td>
+                        <td>@w.SheetNumber</td>
+                        <td>@w.PlayerName</td>
+                        <td><span class="badge bg-warning text-dark">@w.VictoryType</span></td>
+                        <td>@w.BankName</td>
+                        <td>@w.BankAccountNumber</td>
+                        <td>@(w.Phone ?? "-")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <div class="text-white-50 small">
+            Página @Model.Page / @Model.TotalPages
+        </div>
+        <div class="d-flex gap-2">
+            @{
+                var prev = Math.Max(1, Model.Page - 1);
+                var next = Math.Min(Model.TotalPages == 0 ? 1 : Model.TotalPages, Model.Page + 1);
+            }
+            <a class="btn btn-outline-secondary btn-sm"
+               asp-action="Index"
+               asp-route-gen="@Model.FilterGenerationCode"
+               asp-route-name="@Model.FilterName"
+               asp-route-sheet="@Model.FilterSheetNumber"
+               asp-route-page="@prev">←</a>
+
+            <a class="btn btn-outline-secondary btn-sm"
+               asp-action="Index"
+               asp-route-gen="@Model.FilterGenerationCode"
+               asp-route-name="@Model.FilterName"
+               asp-route-sheet="@Model.FilterSheetNumber"
+               asp-route-page="@next">→</a>
+        </div>
+    </div>
+</div>
