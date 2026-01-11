@@ -13,6 +13,8 @@ public class Winner
     public int SheetNumber { get; set; }
     public string VictoryType { get; set; } = "Full"; // Full / Corners / Line
 
+    public decimal PrizeAmount { get; set; }
+
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
 }

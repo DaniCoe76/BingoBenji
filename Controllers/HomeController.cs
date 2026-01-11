@@ -13,20 +13,20 @@ public class HomeController : Controller
     private readonly GenerationCodeService _codeSvc;
     private readonly BingoCardGenerator _gen;
     private readonly PdfService _pdf;
-    private readonly ZipService _zip;
+    private readonly ZipBatchJobService _zipJob;
 
     public HomeController(
         BingoBenjiDbContext db,
         GenerationCodeService codeSvc,
         BingoCardGenerator gen,
         PdfService pdf,
-        ZipService zip)
+        ZipBatchJobService zipJob)
     {
         _db = db;
         _codeSvc = codeSvc;
         _gen = gen;
         _pdf = pdf;
-        _zip = zip;
+        _zipJob = zipJob;
     }
 
     public async Task<IActionResult> Index()
@@ -44,6 +44,12 @@ public class HomeController : Controller
             vm.StockUnassigned = await _db.BingoSheets.CountAsync(s => s.GenerationId == active.Id && s.Status == "Unassigned");
             vm.SoldCount = await _db.BingoSheets.CountAsync(s => s.GenerationId == active.Id && s.Status == "Sold");
         }
+        else
+        {
+            vm.TotalSheets = 0;
+            vm.StockUnassigned = 0;
+            vm.SoldCount = 0;
+        }
 
         return View(vm);
     }
@@ -53,13 +59,9 @@ public class HomeController : Controller
     public async Task<IActionResult> Generate1000()
     {
         var active = await GetActiveGenerationAsync();
-
         if (active == null)
-        {
             active = await CreateNewActiveGenerationAsync();
-        }
 
-        // Si ya existen 1000, no regeneramos aquí
         var existing = await _db.BingoSheets.CountAsync(s => s.GenerationId == active.Id);
         if (existing >= 1000)
         {
@@ -77,119 +79,112 @@ public class HomeController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Regenerate()
     {
-        // 1) Desactivar la generación activa actual (si existe)
-        var actives = await _db.BingoGenerations.Where(g => g.IsActive).ToListAsync();
-        foreach (var g in actives) g.IsActive = false;
+        var strategy = _db.Database.CreateExecutionStrategy();
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await strategy.ExecuteAsync(async () =>
+            {
+                await using var tx = await _db.Database.BeginTransactionAsync();
 
-        // 2) Crear nueva generación activa
-        var newGen = await CreateNewActiveGenerationAsync();
+                // 1) Desactivar activa
+                var actives = await _db.BingoGenerations.Where(g => g.IsActive).ToListAsync();
+                foreach (var g in actives) g.IsActive = false;
+                await _db.SaveChangesAsync();
 
-        // 3) Generar 1000 nuevas sin borrar las antiguas
-        await GenerateSheetsForGenerationAsync(newGen, 1000);
+                // 2) Borrar SOLO BingoSheets
+                await _db.BingoSheets.ExecuteDeleteAsync();
 
-        TempData["Success"] = $"Regeneradas 1000 tablas. Nueva Gen: {newGen.GenerationCode}";
-        return RedirectToAction(nameof(Index));
+                // 3) Nueva generación activa
+                var newGen = await CreateNewActiveGenerationAsync();
+
+                // 4) Generar 1000 nuevas
+                await GenerateSheetsForGenerationAsync(newGen, 1000);
+
+                await tx.CommitAsync();
+            });
+
+            TempData["Success"] = "Regeneradas 1000 tablas. Nueva generación creada.";
+            return RedirectToAction(nameof(Index));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest("Error al regenerar: " + ex.Message);
+        }
     }
 
-
     [HttpGet]
-    public async Task<IActionResult> Preview(int quantity = 1)
+    public async Task<IActionResult> DownloadAllZipStatus()
     {
         var active = await GetActiveGenerationAsync();
         if (active == null)
-            return RedirectToAction(nameof(Index));
+            return Json(new { ok = false, message = "No hay generación activa." });
 
-        quantity = Math.Clamp(quantity, 1, 50); // te dejo hasta 50 para preview, si quieres 1..10 dime.
+        var total = await _db.BingoSheets.CountAsync(s => s.GenerationId == active.Id);
+        var unassigned = await _db.BingoSheets.CountAsync(s => s.GenerationId == active.Id && s.Status == "Unassigned");
+        var allSold = (total > 0 && unassigned == 0);
 
-        var stock = await _db.BingoSheets.CountAsync(s => s.GenerationId == active.Id && s.Status == "Unassigned");
-        if (stock == 0)
+        return Json(new
         {
-            return View(new PreviewSelectionVm
-            {
-                ActiveGeneration = active,
-                StockUnassigned = 0,
-                Quantity = quantity,
-                Message = "No hay stock. Regenera o crea nueva generación."
-            });
-        }
-
-        if (stock < quantity)
-            quantity = stock;
-
-        // Elegir aleatorio de las no vendidas, SIN reservar (solo mostrar)
-        var ids = await _db.BingoSheets
-            .Where(s => s.GenerationId == active.Id && s.Status == "Unassigned")
-            .Select(s => s.Id)
-            .ToListAsync();
-
-        var rng = new Random();
-        var chosenIds = ids.OrderBy(_ => rng.Next()).Take(quantity).ToList();
-
-        var preview = await _db.BingoSheets
-            .Where(s => chosenIds.Contains(s.Id))
-            .OrderBy(s => s.SheetNumber)
-            .ToListAsync();
-
-        return View(new PreviewSelectionVm
-        {
-            ActiveGeneration = active,
-            StockUnassigned = stock,
-            Quantity = quantity,
-            PreviewSheets = preview
+            ok = true,
+            generationCode = active.GenerationCode,
+            total,
+            unassigned,
+            allSold
         });
     }
 
+    // -------- JOB START (con progreso) --------
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Buy(int[] sheetIds)
+    public async Task<IActionResult> StartDownloadZipJob(bool markUnassignedAsSold)
     {
-        if (sheetIds == null || sheetIds.Length == 0)
-        {
-            TempData["Error"] = "No se recibieron tablas para comprar.";
-            return RedirectToAction(nameof(Index));
-        }
-
         var active = await GetActiveGenerationAsync();
         if (active == null)
+            return BadRequest("No hay generación activa.");
+
+        var jobId = _zipJob.StartJob(active.GenerationCode, markUnassignedAsSold);
+        return Json(new { ok = true, jobId });
+    }
+
+    [HttpGet]
+    public IActionResult ZipJobStatus(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return Json(new { ok = false, message = "Job inválido." });
+
+        var job = _zipJob.Get(id);
+        if (job == null)
+            return Json(new { ok = false, message = "Job no encontrado." });
+
+        return Json(new
         {
-            TempData["Error"] = "No hay generación activa.";
-            return RedirectToAction(nameof(Index));
-        }
+            ok = true,
+            status = job.Status.ToString(),
+            progress = job.Progress,
+            message = job.Message
+        });
+    }
 
-        // Traer solo tablas no vendidas y que coincidan con los ids seleccionados
-        var sheets = await _db.BingoSheets
-            .Where(s => s.GenerationId == active.Id && s.Status == "Unassigned" && sheetIds.Contains(s.Id))
-            .ToListAsync();
+    [HttpGet]
+    public IActionResult DownloadZipJob(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return BadRequest("Job inválido.");
 
-        if (sheets.Count == 0)
-        {
-            TempData["Error"] = "Esas tablas ya no están disponibles (quizá ya fueron compradas).";
-            return RedirectToAction(nameof(Index));
-        }
+        var job = _zipJob.Get(id);
+        if (job == null)
+            return NotFound("Job no encontrado.");
 
-        foreach (var s in sheets)
-        {
-            s.Status = "Sold";
-            s.SoldAt = DateTime.Now;
-        }
+        if (job.Status != ZipBatchJobService.JobStatus.Done || string.IsNullOrWhiteSpace(job.ZipPath))
+            return BadRequest("ZIP aún no está listo.");
 
-        await _db.SaveChangesAsync();
+        if (!System.IO.File.Exists(job.ZipPath))
+            return NotFound("ZIP no encontrado en disco.");
 
-        // Generar PDFs y devolver ZIP
-        var files = new Dictionary<string, byte[]>();
-        foreach (var s in sheets.OrderBy(x => x.SheetNumber))
-        {
-            var pdf = _pdf.GenerateSheetPdf(s.GenerationCode, s.SheetNumber, s.CardsJson);
-            var name = $"Gen_{s.GenerationCode}_Tabla_{s.SheetNumber}.pdf";
-            files[name] = pdf;
-        }
-
-        var zipBytes = _zip.BuildZip(files);
-        var zipName = $"BingoBenji_Compra_{active.GenerationCode}_{DateTime.Now:yyyyMMdd_HHmmss}.zip";
-
-        return File(zipBytes, "application/zip", zipName);
+        var fileName = Path.GetFileName(job.ZipPath);
+        var stream = new FileStream(job.ZipPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return File(stream, "application/zip", fileName);
     }
 
     [HttpGet]
@@ -205,8 +200,11 @@ public class HomeController : Controller
         if (sheet == null) return NotFound("Tabla no encontrada.");
 
         var bytes = _pdf.GenerateSheetPdf(sheet.GenerationCode, sheet.SheetNumber, sheet.CardsJson);
-        var fileName = $"Gen_{sheet.GenerationCode}_Tabla_{sheet.SheetNumber}.pdf";
-        return File(bytes, "application/pdf", fileName);
+
+        var fileName = $"Gen_{sheet.GenerationCode}_Tabla_{sheet.SheetNumber:0000}.pdf";
+        Response.Headers["Content-Disposition"] = $"inline; filename=\"{fileName}\"";
+
+        return File(bytes, "application/pdf");
     }
 
     // -------------------------
@@ -221,7 +219,6 @@ public class HomeController : Controller
 
     private async Task<BingoGeneration> CreateNewActiveGenerationAsync()
     {
-        // intentar crear un código único
         for (int attempt = 0; attempt < 30; attempt++)
         {
             var code = _codeSvc.Create10();
@@ -246,20 +243,8 @@ public class HomeController : Controller
 
     private async Task GenerateSheetsForGenerationAsync(BingoGeneration gen, int total)
     {
-        // Generar con garantía anti-duplicado por ContentHash (unique index)
-        // Si hay colisión de hash (contenido repetido), reintenta esa tabla.
-        var toAdd = new List<BingoSheet>(total);
-
-        int sheetNumberStart = 1;
-        var existingMax = await _db.BingoSheets
-            .Where(s => s.GenerationId == gen.Id)
-            .Select(s => (int?)s.SheetNumber)
-            .MaxAsync() ?? 0;
-
-        sheetNumberStart = existingMax + 1;
-
         int created = 0;
-        int sheetNumber = sheetNumberStart;
+        int sheetNumber = 1;
 
         while (created < total && sheetNumber <= 1000)
         {
@@ -286,12 +271,8 @@ public class HomeController : Controller
             }
             catch (DbUpdateException)
             {
-                // Duplicado por ContentHash o SheetNumber, reintentar
                 _db.ChangeTracker.Clear();
-                // No incrementamos sheetNumber: reintenta para el mismo número
             }
         }
-
-        // Si por alguna razón no llegó a 1000 (rarísimo), avisa por TempData desde controlador.
     }
 }

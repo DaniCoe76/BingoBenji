@@ -8,7 +8,4 @@ public class HomeVm
     public int TotalSheets { get; set; }
     public int StockUnassigned { get; set; }
     public int SoldCount { get; set; }
-
-    public string? SearchGenerationCode { get; set; }
-    public int? SearchSheetNumber { get; set; }
 }

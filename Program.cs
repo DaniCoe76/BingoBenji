@@ -28,6 +28,8 @@ builder.Services.AddScoped<GenerationCodeService>();
 builder.Services.AddScoped<BingoCardGenerator>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddScoped<ZipService>();
+builder.Services.AddSingleton<ZipBatchJobService>();
+
 
 // QuestPDF
 QuestPDF.Settings.License = LicenseType.Community;

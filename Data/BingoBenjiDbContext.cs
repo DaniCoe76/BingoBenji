@@ -25,5 +25,10 @@ public class BingoBenjiDbContext : DbContext
 
         modelBuilder.Entity<BingoSheet>()
             .HasIndex(x => new { x.GenerationId, x.SheetNumber }).IsUnique();
+
+        // NUEVO: Precisión de PrizeAmount
+        modelBuilder.Entity<Winner>()
+            .Property(x => x.PrizeAmount)
+            .HasColumnType("decimal(18,2)");
     }
 }

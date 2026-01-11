@@ -4,16 +4,16 @@ namespace BingoBenji.Services;
 
 public class ZipService
 {
-    public byte[] BuildZip(Dictionary<string, byte[]> files)
+    public byte[] BuildZip(List<(string FileName, byte[] Content)> files)
     {
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
-            foreach (var kvp in files)
+            foreach (var f in files)
             {
-                var entry = zip.CreateEntry(kvp.Key, CompressionLevel.Fastest);
+                var entry = zip.CreateEntry(f.FileName, CompressionLevel.Fastest);
                 using var entryStream = entry.Open();
-                entryStream.Write(kvp.Value, 0, kvp.Value.Length);
+                entryStream.Write(f.Content, 0, f.Content.Length);
             }
         }
         return ms.ToArray();

@@ -8,19 +8,22 @@
         <div>
             <h2 class="mb-1">Tablas BingoBenji 🧩</h2>
             <div class="text-white-50">
-                Genera 1000 tablas (cada una: 1 PDF con 4 juegos) • Marca de agua desde <code>wwwroot/images/watermark.jpg</code>
+                ZIP con 1000 PDFs (1..1000) + progreso real
             </div>
         </div>
 
         <div class="d-flex gap-2">
-            <form method="post" asp-action="Generate1000" onsubmit="showLoader()">
-                @Html.AntiForgeryToken()
-                <button class="btn btn-warning btn-glow">
-                    <span>⚙️ Generar 1000</span>
-                </button>
-            </form>
+            @if (Model.TotalSheets == 0)
+            {
+                <form method="post" asp-action="Generate1000" onsubmit="showLoader()">
+                    @Html.AntiForgeryToken()
+                    <button class="btn btn-warning btn-glow">
+                        <span>⚙️ Generar 1000</span>
+                    </button>
+                </form>
+            }
 
-            <form method="post" asp-action="Regenerate" onsubmit="return confirm('Esto reinicia TODO y crea una generación nueva. ¿Continuar?') && (showLoader(), true);">
+            <form method="post" asp-action="Regenerate" onsubmit="return confirmRegenerate();">
                 @Html.AntiForgeryToken()
                 <button class="btn btn-outline-danger">
                     🔁 Regenerar tablas
@@ -34,63 +37,25 @@
     @if (Model.ActiveGeneration == null)
     {
         <div class="alert alert-info glass">
-            No hay generación activa todavía. Pulsa <b>Generar 1000</b>.
+            No hay generación activa todavía.
         </div>
     }
     else
     {
         <div class="row g-3">
-            <div class="col-md-4">
-                <div class="glass p-3">
-                    <div class="text-white-50 small">Generación activa</div>
-                    <div class="fs-4 fw-bold">@Model.ActiveGeneration.GenerationCode</div>
-                    <div class="text-white-50 small">Creada: @Model.ActiveGeneration.CreatedAt.ToString("yyyy-MM-dd HH:mm")</div>
-                </div>
-            </div>
-
-            <div class="col-md-8">
-                <div class="glass p-3 h-100">
-                    <div class="row g-2">
-                        <div class="col-sm-4">
-                            <div class="text-white-50 small">Total</div>
-                            <div class="fs-4 fw-bold">@Model.TotalSheets</div>
-                        </div>
-                        <div class="col-sm-4">
-                            <div class="text-white-50 small">Stock (sin comprar)</div>
-                            <div class="fs-4 fw-bold text-warning">@Model.StockUnassigned</div>
-                        </div>
-                        <div class="col-sm-4">
-                            <div class="text-white-50 small">Compradas</div>
-                            <div class="fs-4 fw-bold text-success">@Model.SoldCount</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <hr class="border-white border-opacity-10" />
-
-        <div class="row g-3">
             <div class="col-lg-6">
                 <div class="glass p-3">
-                    <h5 class="mb-2">🧪 Previsualizar tablas (sin comprar)</h5>
+                    <h5 class="mb-2">📦 Descargar ZIP (Tablas 1..1000)</h5>
 
-                    <div class="text-white-50 small mb-2">
-                        El sistema selecciona aleatoriamente solo del stock disponible. Si no te gustan, vuelve a previsualizar.
-                    </div>
-
-                    <div class="d-flex gap-2 flex-wrap align-items-end">
-                        <div>
-                            <label class="form-label text-white-50">Cantidad</label>
-                            <input id="qty" class="form-control" type="number" min="1" max="50" value="1" />
-                        </div>
-                        <button class="btn btn-outline-info" onclick="goPreview()">
-                            🎲 Buscar aleatorias
+                    <form id="startJobForm" method="post" asp-action="StartDownloadZipJob">
+                        @Html.AntiForgeryToken()
+                        <button type="button" class="btn btn-warning btn-lg btn-glow w-100" onclick="startZipJobFlow()">
+                            <span>⬇️ Descargar ZIP y comprar</span>
                         </button>
-                    </div>
+                    </form>
 
                     <div class="text-white-50 small mt-2">
-                        Nota: la compra se hace en la pantalla de preview.
+                        Verás una barra de progreso real mientras se generan los PDFs y el ZIP.
                     </div>
                 </div>
             </div>
@@ -99,7 +64,7 @@
                 <div class="glass p-3">
                     <h5 class="mb-2">🔎 Buscar PDF por Generación + #Tabla</h5>
 
-                    <form method="get" asp-action="Pdf" class="row g-2" onsubmit="showLoader()">
+                    <form method="get" asp-action="Pdf" class="row g-2" target="_blank">
                         <div class="col-md-6">
                             <label class="form-label text-white-50">Código (10)</label>
                             <input class="form-control" name="generationCode" value="@Model.ActiveGeneration.GenerationCode" maxlength="10" />
@@ -112,22 +77,163 @@
                             <button class="btn btn-success w-100">PDF</button>
                         </div>
                     </form>
-
-                    <div class="text-white-50 small mt-2">
-                        Sirve para reimprimir tablas compradas o revisar cualquier tabla del inventario.
-                    </div>
                 </div>
             </div>
         </div>
     }
 </div>
 
+<!-- Modal progreso -->
+<div class="modal fade" id="zipProgressModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass">
+            <div class="modal-header border-0">
+                <h5 class="modal-title">Generando ZIP…</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-white-50 small mb-2" id="zipMsg">Iniciando…</div>
+
+                <div class="progress" style="height: 18px;">
+                    <div id="zipBar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+                         role="progressbar" style="width: 0%">
+                        0%
+                    </div>
+                </div>
+
+                <div class="text-white-50 small mt-2">
+                    No cierres esta pestaña mientras se arma el ZIP.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script>
-        function goPreview() {
-            const q = parseInt(document.getElementById('qty').value || '1', 10);
-            const safe = Math.max(1, Math.min(50, q));
-            window.location.href = `/Home/Preview?quantity=${safe}`;
+        function confirmRegenerate() {
+            const c1 = confirm("Vas a REGENERAR las 1000 tablas.\nEsto borrará las tablas anteriores (BingoSheets).\n¿Seguro?");
+            if (!c1) return false;
+
+            const c2 = confirm("CONFIRMACIÓN FINAL:\nSe borrarán las 1000 tablas y se crearán 1000 nuevas.\n¿Confirmas?");
+            if (!c2) return false;
+
+            showLoader();
+            return true;
+        }
+
+        let zipPollTimer = null;
+
+        async function startZipJobFlow() {
+            try {
+                // 1) Revisar estado en BD
+                const statusResp = await fetch('/Home/DownloadAllZipStatus');
+                const status = await statusResp.json();
+
+                if (!status || status.ok !== true) {
+                    alert(status?.message || "No se pudo validar el estado en la BD.");
+                    return;
+                }
+
+                // 2) Confirmaciones según tu regla
+                let markUnassignedAsSold = false;
+
+                if (status.allSold === true) {
+                    const again = confirm("¿Estás seguro de descargar nuevamente las 1000 tablas, ya que previamente han sido descargadas y compradas?");
+                    if (!again) return;
+
+                    markUnassignedAsSold = false; // ya están sold, NO tocar
+                } else {
+                    const c1 = confirm("Vas a descargar el ZIP de todas las tablas (1..1000).\n¿Seguro que deseas continuar?");
+                    if (!c1) return;
+
+                    const c2 = confirm("CONFIRMACIÓN FINAL:\nEsto marcará TODAS las tablas NO ASIGNADAS como COMPRADAS (Sold) en la base de datos.\n¿Confirmas?");
+                    if (!c2) return;
+
+                    markUnassignedAsSold = true;
+                }
+
+                // 3) Iniciar job (POST)
+                const form = document.getElementById('startJobForm');
+                const token = form.querySelector('input[name="__RequestVerificationToken"]').value;
+
+                const startResp = await fetch('/Home/StartDownloadZipJob?markUnassignedAsSold=' + (markUnassignedAsSold ? 'true' : 'false'), {
+                    method: 'POST',
+                    headers: { 'RequestVerificationToken': token }
+                });
+
+                if (!startResp.ok) {
+                    const msg = await startResp.text();
+                    alert("No se pudo iniciar el ZIP:\n" + msg);
+                    return;
+                }
+
+                const startData = await startResp.json();
+                if (!startData.ok) {
+                    alert("No se pudo iniciar el ZIP.");
+                    return;
+                }
+
+                const jobId = startData.jobId;
+
+                // 4) Mostrar modal + empezar polling progreso
+                showZipModal();
+                updateZipUI(0, "Iniciando…");
+
+                if (zipPollTimer) clearInterval(zipPollTimer);
+
+                zipPollTimer = setInterval(async () => {
+                    const s = await fetch('/Home/ZipJobStatus?id=' + encodeURIComponent(jobId));
+                    const data = await s.json();
+
+                    if (!data || data.ok !== true) {
+                        updateZipUI(0, "No se pudo leer el estado del job.");
+                        return;
+                    }
+
+                    const p = parseInt(data.progress || 0, 10);
+                    updateZipUI(p, data.message || "");
+
+                    if (data.status === "Error") {
+                        clearInterval(zipPollTimer);
+                        zipPollTimer = null;
+                        updateZipUI(p, "Error: " + (data.message || "falló"));
+                        return;
+                    }
+
+                    if (data.status === "Done" && p >= 100) {
+                        clearInterval(zipPollTimer);
+                        zipPollTimer = null;
+
+                        updateZipUI(100, "Descargando ZIP…");
+
+                        // 5) Disparar descarga (ya está listo)
+                        window.location.href = '/Home/DownloadZipJob?id=' + encodeURIComponent(jobId);
+
+                        // Recargar luego para ver conteos
+                        setTimeout(() => window.location.reload(), 1200);
+                    }
+                }, 1000);
+
+            } catch (e) {
+                alert("Error inesperado iniciando el ZIP.");
+            }
+        }
+
+        function showZipModal() {
+            const modalEl = document.getElementById('zipProgressModal');
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: 'static', keyboard: false });
+            modal.show();
+        }
+
+        function updateZipUI(percent, message) {
+            const bar = document.getElementById('zipBar');
+            const msg = document.getElementById('zipMsg');
+
+            const p = Math.max(0, Math.min(100, percent || 0));
+            bar.style.width = p + "%";
+            bar.textContent = p + "%";
+            msg.textContent = message || "";
         }
     </script>
 }

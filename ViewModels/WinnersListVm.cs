@@ -1,4 +1,5 @@
 ﻿using BingoBenji.Models;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace BingoBenji.ViewModels;
 
@@ -14,5 +15,6 @@ public class WinnersListVm
     public string? FilterName { get; set; }
     public int? FilterSheetNumber { get; set; }
 
+    public List<SelectListItem> GenerationOptions { get; set; } = new();
     public int TotalPages => (int)Math.Ceiling((double)Total / PageSize);
 }
