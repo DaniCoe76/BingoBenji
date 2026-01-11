@@ -1,0 +1,172 @@
+﻿@model BingoBenji.ViewModels.ReporteriaVm
+@using System.Text.Json
+
+@{
+    ViewData["Title"] = "Reportería";
+    var labels = Model.DailyPrizeSeries.Select(x => x.Date.ToString("yyyy-MM-dd")).ToList();
+    var dataPrize = Model.DailyPrizeSeries.Select(x => x.TotalPrize).ToList();
+    var dataCount = Model.DailyPrizeSeries.Select(x => x.WinnersCount).ToList();
+
+    var labelsJson = JsonSerializer.Serialize(labels);
+    var prizeJson = JsonSerializer.Serialize(dataPrize);
+    var countJson = JsonSerializer.Serialize(dataCount);
+}
+
+<div class="glass p-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h3 class="mb-0">Reportería 📊</h3>
+        <a class="btn btn-outline-secondary" asp-controller="Home" asp-action="Index">← Volver</a>
+    </div>
+
+    <hr class="border-white border-opacity-10" />
+
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label text-white-50">Generación</label>
+            <select class="form-select" name="gen">
+                @foreach (var opt in Model.GenerationOptions)
+                {
+                    <option value="@opt.Value" selected="@(opt.Selected ? "selected" : null)">@opt.Text</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label text-white-50">Desde</label>
+            <input class="form-control" type="date" name="from" value="@(Model.DateFrom?.ToString("yyyy-MM-dd") ?? "")" />
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label text-white-50">Hasta</label>
+            <input class="form-control" type="date" name="to" value="@(Model.DateTo?.ToString("yyyy-MM-dd") ?? "")" />
+        </div>
+
+        <div class="col-md-2 d-flex gap-2">
+            <button class="btn btn-outline-info w-100">Filtrar</button>
+            <a class="btn btn-outline-secondary w-100" asp-action="Index">Limpiar</a>
+        </div>
+    </form>
+
+    <hr class="border-white border-opacity-10" />
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="glass p-3">
+                <div class="text-white-50 small">Total ganadores</div>
+                <div class="fs-2 fw-bold">@Model.TotalWinners</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="glass p-3">
+                <div class="text-white-50 small">Total dinero entregado (USD)</div>
+                <div class="fs-2 fw-bold">@Model.TotalPrizeAll.ToString("0.00")</div>
+            </div>
+        </div>
+    </div>
+
+    <hr class="border-white border-opacity-10" />
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="glass p-3">
+                <h5 class="mb-2">Dinero entregado por fecha (USD)</h5>
+                <canvas id="chartPrize"></canvas>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="glass p-3">
+                <h5 class="mb-2">Ganadores por fecha</h5>
+                <canvas id="chartCount"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <hr class="border-white border-opacity-10" />
+
+    <div class="glass p-3">
+        <h5 class="mb-2">Resumen por generación</h5>
+
+        @if (Model.ByGeneration.Count == 0)
+        {
+            <div class="text-white-50">No hay datos con los filtros actuales.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Generación</th>
+                            <th>Ganadores</th>
+                            <th>Total premio (USD)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var g in Model.ByGeneration)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@g.GenerationCode</td>
+                                <td>@g.WinnersCount</td>
+                                <td>@g.TotalPrize.ToString("0.00")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <script>
+        const labels = @Html.Raw(labelsJson);
+        const prizeData = @Html.Raw(prizeJson);
+        const countData = @Html.Raw(countJson);
+
+        const ctxPrize = document.getElementById('chartPrize');
+        new Chart(ctxPrize, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'USD entregados',
+                    data: prizeData,
+                    tension: 0.25
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: true }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+
+        const ctxCount = document.getElementById('chartCount');
+        new Chart(ctxCount, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Ganadores',
+                    data: countData
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: true }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    </script>
+}

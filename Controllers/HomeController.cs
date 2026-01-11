@@ -207,6 +207,18 @@ public class HomeController : Controller
         return File(bytes, "application/pdf");
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GenerationCodes()
+    {
+        var codes = await _db.BingoGenerations
+            .OrderByDescending(g => g.CreatedAt)
+            .Select(g => g.GenerationCode)
+            .ToListAsync();
+
+        return Json(new { ok = true, codes });
+    }
+
+
     // -------------------------
     // Helpers internos
     // -------------------------

@@ -1,18 +1,42 @@
 ﻿@model BingoBenji.ViewModels.HomeVm
 @{
     ViewData["Title"] = "Tablas";
+    var hasActive = Model.ActiveGeneration != null;
+    var allSold = hasActive && Model.TotalSheets > 0 && Model.StockUnassigned == 0;
+
+    var activeCode = Model.ActiveGeneration?.GenerationCode ?? "";
 }
 
 <div class="glass p-4">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <!-- Header / Hero -->
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
         <div>
-            <h2 class="mb-1">Tablas BingoBenji 🧩</h2>
-            <div class="text-white-50">
-                ZIP con 1000 PDFs (1..1000) + progreso real
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+
+                @if (hasActive)
+                {
+                    <span class="badge rounded-pill bg-dark border border-white border-opacity-25 px-3 py-2">
+                        Gen activa:
+                        <span class="fw-bold text-warning">@Model.ActiveGeneration!.GenerationCode</span>
+                    </span>
+
+                    @if (allSold)
+                    {
+                        <span class="badge rounded-pill bg-success px-3 py-2">
+                            ✅ Tablas ya compradas
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="badge rounded-pill bg-warning text-dark px-3 py-2">
+                            ⏳ Tablas pendiente de compra
+                        </span>
+                    }
+                }
             </div>
         </div>
 
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
             @if (Model.TotalSheets == 0)
             {
                 <form method="post" asp-action="Generate1000" onsubmit="showLoader()">
@@ -32,51 +56,148 @@
         </div>
     </div>
 
-    <hr class="border-white border-opacity-10" />
+    <hr class="border-white border-opacity-10 my-4" />
 
-    @if (Model.ActiveGeneration == null)
+    @if (!hasActive)
     {
-        <div class="alert alert-info glass">
-            No hay generación activa todavía.
+        <div class="alert alert-info glass mb-0">
+            No hay generación activa todavía. Genera 1000 para iniciar.
         </div>
     }
     else
     {
+        <!-- KPIs -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="glass p-3 h-100">
+                    <div class="text-white-50 small">Total tablas</div>
+                    <div class="fs-2 fw-bold">@Model.TotalSheets</div>
+                    <div class="text-white-50 small">En esta generación</div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass p-3 h-100">
+                    <div class="text-white-50 small">Stock disponible</div>
+                    <div class="fs-2 fw-bold text-warning">@Model.StockUnassigned</div>
+                    <div class="text-white-50 small">Unassigned</div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="glass p-3 h-100">
+                    <div class="text-white-50 small">Compradas</div>
+                    <div class="fs-2 fw-bold text-success">@Model.SoldCount</div>
+                    <div class="text-white-50 small">Sold</div>
+                </div>
+            </div>
+        </div>
+
         <div class="row g-3">
-            <div class="col-lg-6">
-                <div class="glass p-3">
-                    <h5 class="mb-2">📦 Descargar ZIP (Tablas 1..1000)</h5>
+            <!-- ZIP card -->
+            <div class="col-lg-7">
+                <div class="glass p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <h5 class="mb-1">📦 Descargar ZIP completo</h5>
+                            <div class="text-white-50 small">
+                                Incluye <b>1000 PDFs</b> en orden. Al momento de darle al botón de descargar todas las tablas pasarán al estado de <b>Compradas</b> si el estado ya es comprado entonces solo se descargará el zip.
+                            </div>
+                        </div>
 
-                    <form id="startJobForm" method="post" asp-action="StartDownloadZipJob">
-                        @Html.AntiForgeryToken()
-                        <button type="button" class="btn btn-warning btn-lg btn-glow w-100" onclick="startZipJobFlow()">
-                            <span>⬇️ Descargar ZIP y comprar</span>
-                        </button>
-                    </form>
+                        <div class="text-end">
+                            @if (allSold)
+                            {
+                                <div class="badge bg-success">Inventario ya comprado</div>
+                            }
+                            else
+                            {
+                                <div class="badge bg-warning text-dark">Se marcará como comprado</div>
+                            }
+                        </div>
+                    </div>
 
-                    <div class="text-white-50 small mt-2">
-                        Verás una barra de progreso real mientras se generan los PDFs y el ZIP.
+                    <div class="mt-3">
+                        <form id="startJobForm" method="post" asp-action="StartDownloadZipJob">
+                            @Html.AntiForgeryToken()
+
+                            <button type="button"
+                                    class="btn btn-warning btn-lg btn-glow w-100 d-flex align-items-center justify-content-between px-4 py-3"
+                                    onclick="startZipJobFlow()">
+                                <span class="fw-semibold">
+                                    @(allSold ? "⬇️ Descargar ZIP nuevamente" : "🛒 Descargar ZIP y comprar")
+                                </span>
+                                <span class="text-dark fw-bold">
+                                    1000 PDFs
+                                </span>
+                            </button>
+                        </form>
+
+                        <div class="text-white-50 small mt-2">
+                            Verás una barra de progreso real mientras se generan los PDFs y el ZIP.
+                        </div>
+                    </div>
+
+                    <hr class="border-white border-opacity-10 my-3" />
+
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <span class="text-white-50 small">Estado:</span>
+                        @if (allSold)
+                        {
+                            <span class="badge bg-success">✅ Ya fueron compradas</span>
+
+                        }
+                        else
+                        {
+                            <span class="badge bg-warning text-dark">⏳ Pendientes por comprar</span>
+                            <span class="text-white-50 small">Se actualizarán a "tablas compradas" si confirmas.</span>
+                        }
                     </div>
                 </div>
             </div>
 
-            <div class="col-lg-6">
-                <div class="glass p-3">
-                    <h5 class="mb-2">🔎 Buscar PDF por Generación + #Tabla</h5>
+            <!-- PDF search card -->
+            <div class="col-lg-5">
+                <div class="glass p-4 h-100">
+                    <h5 class="mb-2">🔎 Reimprimir / Ver PDF</h5>
+                    <div class="text-white-50 small mb-3">
+                        Abre el PDF en una nueva pestaña para previsualizar y descargar si deseas.
+                    </div>
 
                     <form method="get" asp-action="Pdf" class="row g-2" target="_blank">
-                        <div class="col-md-6">
-                            <label class="form-label text-white-50">Código (10)</label>
-                            <input class="form-control" name="generationCode" value="@Model.ActiveGeneration.GenerationCode" maxlength="10" />
+                        <div class="col-12">
+                            <label class="form-label text-white-50 mb-1">Generación</label>
+
+                            <!-- ✅ Listbox de generaciones (cargado por JS). Default: activa -->
+                            <select class="form-select" name="generationCode" id="genSelect">
+                                <option value="@activeCode" selected>@activeCode</option>
+                            </select>
+
+                            <div class="text-white-50 small mt-1">
+                                Por defecto está seleccionada la generación activa.
+                            </div>
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label text-white-50">Tabla #</label>
-                            <input class="form-control" name="sheetNumber" type="number" min="1" max="1000" placeholder="56" />
+
+                        <div class="col-12">
+                            <label class="form-label text-white-50 mb-1">Tabla #</label>
+                            <input class="form-control"
+                                   name="sheetNumber"
+                                   type="number"
+                                   min="1"
+                                   max="1000"
+                                   placeholder="56" />
                         </div>
-                        <div class="col-md-2 d-flex align-items-end">
-                            <button class="btn btn-success w-100">PDF</button>
+
+                        <div class="col-12 mt-1">
+                            <button class="btn btn-success w-100">
+                                Abrir PDF ↗
+                            </button>
                         </div>
                     </form>
+
+                    <div class="text-white-50 small mt-3">
+                        Tip: puedes elegir generaciones anteriores desde la lista.
+                    </div>
                 </div>
             </div>
         </div>
@@ -112,7 +233,7 @@
 @section Scripts {
     <script>
         function confirmRegenerate() {
-            const c1 = confirm("Vas a REGENERAR las 1000 tablas.\nEsto borrará las tablas anteriores (BingoSheets).\n¿Seguro?");
+            const c1 = confirm("Vas a REGENERAR las 1000 tablas.\nEsto borrará las tablas anteriores.\n¿Seguro?");
             if (!c1) return false;
 
             const c2 = confirm("CONFIRMACIÓN FINAL:\nSe borrarán las 1000 tablas y se crearán 1000 nuevas.\n¿Confirmas?");
@@ -147,7 +268,7 @@
                     const c1 = confirm("Vas a descargar el ZIP de todas las tablas (1..1000).\n¿Seguro que deseas continuar?");
                     if (!c1) return;
 
-                    const c2 = confirm("CONFIRMACIÓN FINAL:\nEsto marcará TODAS las tablas NO ASIGNADAS como COMPRADAS (Sold) en la base de datos.\n¿Confirmas?");
+                    const c2 = confirm("CONFIRMACIÓN FINAL:\nEsto marcará TODAS las tablas NO ASIGNADAS como COMPRADAS en la base de datos.\n¿Confirmas?");
                     if (!c2) return;
 
                     markUnassignedAsSold = true;
@@ -235,5 +356,32 @@
             bar.textContent = p + "%";
             msg.textContent = message || "";
         }
+
+        // ✅ Cargar generaciones para el listbox de PDF (default: activa)
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const active = "@activeCode";
+                const sel = document.getElementById('genSelect');
+
+                const resp = await fetch('/Home/GenerationCodes');
+                if (!resp.ok) return;
+
+                const data = await resp.json();
+                if (!data || data.ok !== true) return;
+
+                const codes = data.codes || [];
+                if (codes.length === 0) return;
+
+                // Rebuild options
+                sel.innerHTML = "";
+                for (const c of codes) {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    opt.textContent = c;
+                    if (c === active) opt.selected = true;
+                    sel.appendChild(opt);
+                }
+            } catch { }
+        });
     </script>
 }
